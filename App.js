@@ -1,6 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, StyleSheet } from 'react-native';
-import { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { uploadImageToCloudinary } from './services/cloudinary';
+import { sendSupportEmail } from './services/emailjs';
+import { useState } from 'react';
 
 export default function App() {
   const [name, setName] = useState('');
@@ -8,24 +10,37 @@ export default function App() {
   const [category, setCategory] = useState('');
   const [message, setMessage] = useState('');
   const [image, setImage] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const categories = ['Account Problem', 'Technical Issue', 'Payment Concern', 'Other'];
 
   const pickImage = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow gallery access to attach a screenshot.');
-      return;
-    }
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Please allow gallery access to attach a screenshot.');
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
-    if (result.canceled) {
-      return;
+      const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+      if (result.canceled) {
+        return;
+      }
+      setImage(result.assets[0]);
+    } catch (err) {
+      Alert.alert(
+        'Image picker error',
+        String(err && err.message ? err.message : err) +
+          '\n\npermission fn: ' + typeof ImagePicker.requestMediaLibraryPermissionsAsync +
+          '\nlaunch fn: ' + typeof ImagePicker.launchImageLibraryAsync
+      );
     }
-    setImage(result.assets[0]);
   };
 
-  const handleSubmit = () => {
+      const handleSubmit = async () => {
+    if (loading) {
+      return;                      // Prevent duplicate submissions
+    }
     if (!name.trim() || !email.trim() || !category || !message.trim()) {
       Alert.alert('Missing information', 'Please fill in all required fields.');
       return;
@@ -34,7 +49,30 @@ export default function App() {
       Alert.alert('Screenshot needed', 'Please attach a screenshot.');
       return;
     }
-    Alert.alert('Form is valid', 'Upload and email will be added next.');
+
+    setLoading(true);
+    let step = 'start';
+    try {
+      step = 'upload';
+      const imageUrl = await uploadImageToCloudinary(image);   // Wait for the upload first
+      step = 'email';
+      await sendSupportEmail({ name, email, category, message, imageUrl });
+      Alert.alert('Success', 'Your support request was sent.');
+      setName('');
+      setEmail('');
+      setCategory('');
+      setMessage('');
+      setImage(null);
+    } catch (err) {
+      Alert.alert(
+        'Failed at step: ' + step,
+        String(err && err.message ? err.message : err) +
+          '\n\nupload: ' + typeof uploadImageToCloudinary +
+          '\nemail: ' + typeof sendSupportEmail
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -90,8 +128,12 @@ export default function App() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>Submit</Text>
+      <TouchableOpacity
+        style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -125,6 +167,11 @@ const styles = StyleSheet.create({
     height: 110,                  
     textAlignVertical: 'top',     
   },
+
+  submitButtonDisabled: {
+    opacity: 0.6,                 // Color: Faded button while loading
+  },
+
   chips: {
     flexDirection: 'row',        
     flexWrap: 'wrap',            
