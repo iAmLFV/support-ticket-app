@@ -18,6 +18,7 @@ https://github.com/iAmLFV/support-ticket-app
 - Image upload to Cloudinary (unsigned upload preset)
 - Support email with a clickable screenshot link sent through EmailJS
 - Required-field validation, loading indicator, and duplicate-submit prevention
+- Tested on both partners' laptops
 
 ## Setup
 
