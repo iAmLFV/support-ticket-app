@@ -20,6 +20,7 @@ https://github.com/iAmLFV/support-ticket-app
 - Required-field validation, loading indicator, and duplicate-submit prevention
 - Tested on both partners' laptops
 - Setup steps verified by both partners
+- Verified on both partners' laptops
 
 ## Setup
 
